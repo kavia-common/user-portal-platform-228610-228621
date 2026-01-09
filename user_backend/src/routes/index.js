@@ -1,8 +1,7 @@
 const express = require('express');
 const healthController = require('../controllers/health');
-const authController = require('../controllers/auth');
 const userController = require('../controllers/user');
-const { requireAuth } = require('../middleware/auth');
+const { requireJwt } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -11,15 +10,19 @@ const router = express.Router();
  * tags:
  *   - name: Health
  *     description: Service health and status
- *   - name: Auth
- *     description: Registration, login, logout, and session-based authentication
  *   - name: User
- *     description: Session-backed user resources
+ *     description: Bearer-JWT protected user resources (JWT issued by API Gateway)
  */
 
 /**
  * @swagger
  * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ *       description: Supply the JWT issued by the API Gateway as `Authorization: Bearer <token>`.
  *   schemas:
  *     ErrorResponse:
  *       type: object
@@ -47,35 +50,12 @@ const router = express.Router();
  *       properties:
  *         user:
  *           $ref: '#/components/schemas/User'
- *     RegisterRequest:
- *       type: object
- *       required: [email, password, displayName]
- *       properties:
- *         email:
- *           type: string
- *           example: user@example.com
- *         password:
- *           type: string
- *           example: verysecretpassword
- *         displayName:
- *           type: string
- *           example: Jane Doe
- *     LoginRequest:
- *       type: object
- *       required: [email, password]
- *       properties:
- *         email:
- *           type: string
- *           example: user@example.com
- *         password:
- *           type: string
- *           example: verysecretpassword
  */
 
-// Health endpoint
+// Health endpoints (unprotected)
 /**
  * @swagger
- * /:
+ * /health:
  *   get:
  *     tags: [Health]
  *     summary: Health endpoint
@@ -100,112 +80,16 @@ const router = express.Router();
  *                   type: string
  *                   example: development
  */
-router.get('/', healthController.check.bind(healthController));
-
-/**
- * @swagger
- * /auth/register:
- *   post:
- *     tags: [Auth]
- *     summary: Register a new user and start a session
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RegisterRequest'
- *     responses:
- *       201:
- *         description: Registered successfully
- *         headers:
- *           Set-Cookie:
- *             description: HTTP-only session cookie
- *             schema:
- *               type: string
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
- *       400:
- *         description: Invalid input
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       409:
- *         description: Email already registered
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.post('/auth/register', authController.register.bind(authController));
-
-/**
- * @swagger
- * /auth/login:
- *   post:
- *     tags: [Auth]
- *     summary: Login and start a session
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
- *     responses:
- *       200:
- *         description: Logged in successfully
- *         headers:
- *           Set-Cookie:
- *             description: HTTP-only session cookie
- *             schema:
- *               type: string
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
- *       400:
- *         description: Invalid input
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         description: Invalid credentials
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.post('/auth/login', authController.login.bind(authController));
-
-/**
- * @swagger
- * /auth/logout:
- *   post:
- *     tags: [Auth]
- *     summary: Logout and destroy the current session
- *     responses:
- *       200:
- *         description: Logged out successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: ok
- */
-router.post('/auth/logout', authController.logout.bind(authController));
+router.get('/health', healthController.check.bind(healthController));
 
 /**
  * @swagger
  * /me:
  *   get:
  *     tags: [User]
- *     summary: Get the current authenticated user
+ *     summary: Get the current authenticated user (via Bearer JWT)
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Current user
@@ -220,14 +104,16 @@ router.post('/auth/logout', authController.logout.bind(authController));
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/me', requireAuth, userController.me.bind(userController));
+router.get('/me', requireJwt, userController.me.bind(userController));
 
 /**
  * @swagger
  * /home:
  *   get:
  *     tags: [User]
- *     summary: Get personalized home page data for the authenticated user
+ *     summary: Get personalized home page data for the authenticated user (via Bearer JWT)
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Personalized homepage payload
@@ -263,6 +149,6 @@ router.get('/me', requireAuth, userController.me.bind(userController));
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/home', requireAuth, userController.home.bind(userController));
+router.get('/home', requireJwt, userController.home.bind(userController));
 
 module.exports = router;

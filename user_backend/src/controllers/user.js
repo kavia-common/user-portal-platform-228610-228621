@@ -4,16 +4,23 @@ class UserController {
   /**
    * PUBLIC_INTERFACE
    * GET /me
-   * Returns the currently authenticated user.
+   * Returns the currently authenticated user (JWT-based).
    */
   async me(req, res, next) {
     try {
-      const userId = req.session.userId;
-      const user = await authService.getUserById(userId);
-      if (!user) {
-        // Session exists but user removed
+      // Convention: API Gateway should include user identifier as `sub`.
+      const userId = req.auth && (req.auth.sub || req.auth.userId);
+
+      if (!userId) {
         return res.status(401).json({ status: 'error', message: 'Unauthorized' });
       }
+
+      const user = await authService.getUserById(userId);
+      if (!user) {
+        // Token valid but user not present (deleted/disabled)
+        return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+      }
+
       return res.status(200).json({ user });
     } catch (err) {
       return next(err);
@@ -23,11 +30,16 @@ class UserController {
   /**
    * PUBLIC_INTERFACE
    * GET /home
-   * Returns personalized homepage data for authenticated user.
+   * Returns personalized homepage data for authenticated user (JWT-based).
    */
   async home(req, res, next) {
     try {
-      const userId = req.session.userId;
+      const userId = req.auth && (req.auth.sub || req.auth.userId);
+
+      if (!userId) {
+        return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+      }
+
       const user = await authService.getUserById(userId);
       if (!user) {
         return res.status(401).json({ status: 'error', message: 'Unauthorized' });
@@ -40,7 +52,6 @@ class UserController {
           message: 'This is your personalized home feed.',
           links: [
             { label: 'Profile', href: '/me' },
-            { label: 'Logout', href: '/auth/logout' },
           ],
         },
       });
